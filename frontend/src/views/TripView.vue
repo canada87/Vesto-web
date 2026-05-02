@@ -102,7 +102,7 @@
             :items="wardrobeCache"
             :missing="packingMissing"
             :duration="tripDuration"
-            @toggle-lock-slot="toggleLockSlot"
+            @regenerate-slot="regenerateSlot"
             @remove-slot="removeSlot"
             @add-slot="openPicker"
           />
@@ -323,24 +323,16 @@ async function loadPacking() {
       byCat[item.category].push(item)
     }
 
-    // Rebuild slots: keep locked, fill unlocked with suggestions (cycling if fewer items than days)
-    const newSlots: TripSlot[] = []
+    // Rebuild slots: keep existing filled slots, fill only empty slots with suggestions
+    const newSlots: TripSlot[] = [...packingSlots.value]
     for (const [cat, suggested] of Object.entries(byCat)) {
       let sugIdx = 0
       for (let d = 0; d < duration; d++) {
-        const existing = packingSlots.value.find(s => s.day === d && s.category === cat)
-        if (existing?.locked) {
-          newSlots.push(existing)
-        } else if (suggested.length > 0) {
+        const alreadyFilled = newSlots.find(s => s.day === d && s.category === cat)
+        if (!alreadyFilled && suggested.length > 0) {
           newSlots.push({ day: d, category: cat, item_id: suggested[sugIdx % suggested.length].id, locked: true })
           sugIdx++
         }
-      }
-    }
-    // Keep locked slots from categories not covered by suggestions
-    for (const s of packingSlots.value) {
-      if (s.locked && !newSlots.find(ns => ns.day === s.day && ns.category === s.category)) {
-        newSlots.push(s)
       }
     }
 
@@ -353,11 +345,46 @@ async function loadPacking() {
   }
 }
 
-async function toggleLockSlot(payload: { day: number; category: string }) {
-  const slot = packingSlots.value.find(s => s.day === payload.day && s.category === payload.category)
-  if (!slot) return
-  slot.locked = !slot.locked
-  await saveSlots()
+async function regenerateSlot(payload: { day: number; category: string }) {
+  if (!selectedTrip.value) return
+  packingLoading.value = true
+  try {
+    const duration = tripDuration.value || 3
+    const res = await apiSuggestPacking({
+      trip_type: selectedTrip.value.trip_type,
+      season: packingSeason.value,
+      duration_days: duration,
+    })
+    await ensureWardrobeLoaded()
+
+    const candidates = res.items.filter(i => i.category === payload.category)
+    const currentId = packingSlots.value.find(s => s.day === payload.day && s.category === payload.category)?.item_id
+    const usedIds = new Set(
+      packingSlots.value
+        .filter(s => s.category === payload.category && s.day !== payload.day)
+        .map(s => s.item_id)
+    )
+
+    // Prefer items not already used in other slots of same category and different from current
+    const pick =
+      candidates.find(i => i.id !== currentId && !usedIds.has(i.id)) ??
+      candidates.find(i => i.id !== currentId) ??
+      candidates[0]
+
+    if (pick) {
+      packingSlots.value = packingSlots.value.filter(
+        s => !(s.day === payload.day && s.category === payload.category)
+      )
+      packingSlots.value.push({ day: payload.day, category: payload.category, item_id: pick.id, locked: true })
+      await saveSlots()
+    } else {
+      showSnack('Nessuna alternativa disponibile per questa categoria', 'warning')
+    }
+  } catch {
+    showSnack('Errore nella rigenerazione', 'error')
+  } finally {
+    packingLoading.value = false
+  }
 }
 
 async function removeSlot(payload: { day: number; category: string }) {

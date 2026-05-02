@@ -68,14 +68,12 @@
                 </div>
 
                 <v-btn
-                  :icon="getSlot(day - 1, category)!.locked ? 'mdi-lock' : 'mdi-lock-open-variant'"
+                  icon="mdi-shuffle"
                   size="x-small"
                   variant="text"
-                  :color="getSlot(day - 1, category)!.locked ? 'primary' : 'grey'"
-                  :title="getSlot(day - 1, category)!.locked
-                    ? 'Sblocca (Suggerisci potrà cambiarlo)'
-                    : 'Blocca (Suggerisci non lo cambierà)'"
-                  @click="$emit('toggleLockSlot', { day: day - 1, category })"
+                  color="grey"
+                  title="Suggerisci un'alternativa per questo slot"
+                  @click="$emit('regenerateSlot', { day: day - 1, category })"
                 />
 
                 <v-btn
@@ -134,7 +132,7 @@ const props = defineProps<{
 }>()
 
 defineEmits<{
-  toggleLockSlot: [payload: { day: number; category: string }]
+  regenerateSlot: [payload: { day: number; category: string }]
   removeSlot: [payload: { day: number; category: string }]
   addSlot: [payload: { category: string; dayIndex: number }]
 }>()
@@ -157,17 +155,11 @@ function getItem(itemId: string): ClothingItem | null {
   return itemsById.value[itemId] ?? null
 }
 
-function slotStyle(day: number, category: string): string {
-  const slot = getSlot(day, category)
-  if (!slot) return ''
-  return slot.locked
-    ? 'background: rgba(var(--v-theme-primary), 0.08); border: 1px solid rgba(var(--v-theme-primary), 0.2)'
-    : 'background: rgba(var(--v-border-color), 0.06)'
+function slotStyle(_day: number, _category: string): string {
+  return 'background: rgba(var(--v-border-color), 0.06)'
 }
 
 function daySlotColor(category: string, day: number): string {
-  const slot = getSlot(day, category)
-  if (!slot) return 'grey-lighten-3'
-  return slot.locked ? 'primary' : 'success'
+  return getSlot(day, category) ? 'success' : 'grey-lighten-3'
 }
 </script>
