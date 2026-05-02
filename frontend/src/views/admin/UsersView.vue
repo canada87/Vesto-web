@@ -53,7 +53,7 @@
                 size="small"
                 variant="text"
                 color="error"
-                @click="confirmDeleteUser = user"
+                @click="confirmDeleteUser = user; deleteDialog = true"
               />
             </div>
           </template>
@@ -100,7 +100,7 @@
     </v-dialog>
 
     <!-- Delete confirm -->
-    <v-dialog v-model="!!confirmDeleteUser" max-width="360">
+    <v-dialog v-model="deleteDialog" max-width="360">
       <v-card>
         <v-card-title>Elimina utente</v-card-title>
         <v-card-text>
@@ -108,7 +108,7 @@
         </v-card-text>
         <v-card-actions>
           <v-spacer />
-          <v-btn variant="text" @click="confirmDeleteUser = null">Annulla</v-btn>
+          <v-btn variant="text" @click="deleteDialog = false; confirmDeleteUser = null">Annulla</v-btn>
           <v-btn color="error" variant="flat" @click="doDeleteUser">Elimina</v-btn>
         </v-card-actions>
       </v-card>
@@ -130,6 +130,7 @@ const formDialog = ref(false)
 const saving = ref(false)
 const editingUser = ref<User | null>(null)
 const confirmDeleteUser = ref<User | null>(null)
+const deleteDialog = ref(false)
 const showPwd = ref(false)
 const snackbar = ref(false)
 const snackMessage = ref('')
@@ -184,6 +185,7 @@ async function doDeleteUser() {
   await apiDeleteUser(confirmDeleteUser.value.id)
   users.value = users.value.filter(u => u.id !== confirmDeleteUser.value!.id)
   confirmDeleteUser.value = null
+  deleteDialog.value = false
   showSnack('Utente eliminato', 'success')
 }
 
