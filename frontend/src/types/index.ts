@@ -3,12 +3,26 @@ export interface User {
   username: string
   role: 'admin' | 'user'
   is_active: boolean
+  totp_enabled: boolean
   created_at: string
 }
 
-export interface TokenResponse {
+export interface LoginResponse {
+  access_token?: string
+  token_type: string
+  requires_2fa: boolean
+  partial_token?: string
+}
+
+export interface TwoFAVerifyResponse {
   access_token: string
   token_type: string
+  trusted_device_token?: string
+}
+
+export interface TwoFASetupResponse {
+  qr_code: string
+  secret: string
 }
 
 export interface ClothingItem {

@@ -8,11 +8,39 @@ from datetime import datetime
 class LoginRequest(BaseModel):
     username: str
     password: str
+    trusted_device_token: Optional[str] = None
 
 
-class TokenResponse(BaseModel):
+class LoginResponse(BaseModel):
+    access_token: Optional[str] = None
+    token_type: str = "bearer"
+    requires_2fa: bool = False
+    partial_token: Optional[str] = None
+
+
+class TwoFAVerifyRequest(BaseModel):
+    partial_token: str
+    otp_code: str
+    remember_device: bool = True
+
+
+class TwoFAVerifyResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
+    trusted_device_token: Optional[str] = None
+
+
+class TwoFASetupResponse(BaseModel):
+    qr_code: str
+    secret: str
+
+
+class TwoFAEnableRequest(BaseModel):
+    otp_code: str
+
+
+class TwoFADisableRequest(BaseModel):
+    otp_code: str
 
 
 class UserCreate(BaseModel):
@@ -32,6 +60,7 @@ class UserResponse(BaseModel):
     username: str
     role: str
     is_active: bool
+    totp_enabled: bool = False
     created_at: datetime
 
     class Config:

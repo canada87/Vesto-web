@@ -89,7 +89,7 @@
     </v-card>
 
     <!-- Account -->
-    <v-card :elevation="1" rounded="xl">
+    <v-card :elevation="1" rounded="xl" class="mb-4">
       <v-card-title class="text-subtitle-1 pa-4 pb-2">Account</v-card-title>
       <v-card-text>
         <div class="text-body-2 mb-1">
@@ -117,6 +117,77 @@
       </v-card-text>
     </v-card>
 
+    <!-- Autenticazione a due fattori -->
+    <v-card :elevation="1" rounded="xl">
+      <v-card-title class="text-subtitle-1 pa-4 pb-2">
+        Autenticazione a due fattori
+        <v-chip
+          class="ml-2"
+          size="x-small"
+          :color="authStore.user?.totp_enabled ? 'success' : 'default'"
+          variant="flat"
+        >
+          {{ authStore.user?.totp_enabled ? 'Attiva' : 'Non attiva' }}
+        </v-chip>
+      </v-card-title>
+      <v-card-text>
+        <!-- Attiva 2FA -->
+        <template v-if="!authStore.user?.totp_enabled">
+          <div class="text-body-2 text-medium-emphasis mb-3">
+            Proteggi il tuo account con un'app di autenticazione (Google Authenticator, Authy, ecc.).
+          </div>
+          <div v-if="!qrCode">
+            <v-btn color="primary" variant="tonal" :loading="twoFaLoading" @click="startSetup2FA">
+              <v-icon start>mdi-shield-key</v-icon>
+              Configura 2FA
+            </v-btn>
+          </div>
+          <div v-else>
+            <div class="text-body-2 mb-2">1. Scansiona il QR code con la tua app:</div>
+            <v-img :src="`data:image/png;base64,${qrCode}`" max-width="200" class="mb-3 rounded" />
+            <div class="text-caption text-medium-emphasis mb-3">
+              Codice manuale: <strong>{{ totpSecret }}</strong>
+            </div>
+            <div class="text-body-2 mb-2">2. Inserisci il codice generato per confermare:</div>
+            <div class="d-flex gap-2 align-center flex-wrap">
+              <v-text-field
+                v-model="enableOtpCode"
+                label="Codice OTP"
+                density="compact"
+                hide-details
+                maxlength="6"
+                inputmode="numeric"
+                style="max-width:160px"
+              />
+              <v-btn color="success" :loading="twoFaLoading" @click="confirmEnable2FA">Attiva</v-btn>
+              <v-btn variant="text" @click="cancelSetup">Annulla</v-btn>
+            </div>
+          </div>
+        </template>
+
+        <!-- Disabilita 2FA -->
+        <template v-else>
+          <div class="text-body-2 text-medium-emphasis mb-3">
+            Il 2FA è attivo. Per disabilitarlo inserisci un codice OTP valido.
+          </div>
+          <div class="d-flex gap-2 align-center flex-wrap">
+            <v-text-field
+              v-model="disableOtpCode"
+              label="Codice OTP"
+              density="compact"
+              hide-details
+              maxlength="6"
+              inputmode="numeric"
+              style="max-width:160px"
+            />
+            <v-btn color="error" variant="tonal" :loading="twoFaLoading" @click="confirmDisable2FA">
+              Disabilita
+            </v-btn>
+          </div>
+        </template>
+      </v-card-text>
+    </v-card>
+
     <v-snackbar v-model="snackbar" :color="snackColor" timeout="3000">{{ snackMessage }}</v-snackbar>
   </div>
 </template>
@@ -130,6 +201,7 @@ import {
   apiGetStats, apiGetLocations, apiAddLocation, apiDeleteLocation,
   apiExportBackup, apiImportBackup, apiSeedTestData,
 } from '@/api/settings'
+import { apiSetup2FA, apiEnable2FA, apiDisable2FA } from '@/api/auth'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -144,6 +216,12 @@ const seedLoading = ref(false)
 const snackbar = ref(false)
 const snackMessage = ref('')
 const snackColor = ref('success')
+
+const twoFaLoading = ref(false)
+const qrCode = ref('')
+const totpSecret = ref('')
+const enableOtpCode = ref('')
+const disableOtpCode = ref('')
 
 onMounted(async () => {
   const [s, l] = await Promise.all([apiGetStats(), apiGetLocations()])
@@ -199,6 +277,56 @@ async function seedData() {
 function logout() {
   authStore.logout()
   router.push('/login')
+}
+
+async function startSetup2FA() {
+  twoFaLoading.value = true
+  try {
+    const data = await apiSetup2FA()
+    qrCode.value = data.qr_code
+    totpSecret.value = data.secret
+  } catch {
+    showSnack('Errore nel setup 2FA', 'error')
+  } finally {
+    twoFaLoading.value = false
+  }
+}
+
+async function confirmEnable2FA() {
+  twoFaLoading.value = true
+  try {
+    const data = await apiEnable2FA(enableOtpCode.value)
+    localStorage.setItem('vesto_trusted_device', data.trusted_device_token)
+    await authStore.fetchMe()
+    qrCode.value = ''
+    totpSecret.value = ''
+    enableOtpCode.value = ''
+    showSnack('2FA attivato', 'success')
+  } catch (e: any) {
+    showSnack(e.response?.data?.detail || 'Codice OTP non valido', 'error')
+  } finally {
+    twoFaLoading.value = false
+  }
+}
+
+function cancelSetup() {
+  qrCode.value = ''
+  totpSecret.value = ''
+  enableOtpCode.value = ''
+}
+
+async function confirmDisable2FA() {
+  twoFaLoading.value = true
+  try {
+    await apiDisable2FA(disableOtpCode.value)
+    await authStore.fetchMe()
+    disableOtpCode.value = ''
+    showSnack('2FA disabilitato', 'success')
+  } catch (e: any) {
+    showSnack(e.response?.data?.detail || 'Codice OTP non valido', 'error')
+  } finally {
+    twoFaLoading.value = false
+  }
 }
 
 function showSnack(msg: string, color: string) {
