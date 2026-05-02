@@ -323,7 +323,7 @@ async function loadPacking() {
       byCat[item.category].push(item)
     }
 
-    // Rebuild slots: keep locked, fill unlocked with suggestions
+    // Rebuild slots: keep locked, fill unlocked with suggestions (cycling if fewer items than days)
     const newSlots: TripSlot[] = []
     for (const [cat, suggested] of Object.entries(byCat)) {
       let sugIdx = 0
@@ -331,10 +331,10 @@ async function loadPacking() {
         const existing = packingSlots.value.find(s => s.day === d && s.category === cat)
         if (existing?.locked) {
           newSlots.push(existing)
-        } else if (sugIdx < suggested.length) {
-          newSlots.push({ day: d, category: cat, item_id: suggested[sugIdx++].id, locked: true })
+        } else if (suggested.length > 0) {
+          newSlots.push({ day: d, category: cat, item_id: suggested[sugIdx % suggested.length].id, locked: true })
+          sugIdx++
         }
-        // else: no suggestion for this day → empty slot (nothing pushed)
       }
     }
     // Keep locked slots from categories not covered by suggestions

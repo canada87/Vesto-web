@@ -88,4 +88,9 @@ def suggest_packing(
         if sport:
             selected.extend(sport)
 
+    accessories_count = max(1, duration_days // 2)
+    accessories = filter_and_sort("accessory", accessories_count)
+    if accessories:
+        selected.extend(accessories)
+
     return {"items": selected, "missing_categories": missing}
