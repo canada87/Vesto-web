@@ -36,7 +36,7 @@ def suggest_packing(
         return items[:count]
 
     tops_count = duration_days
-    bottoms_count = max(1, duration_days // 2)
+    bottoms_count = duration_days
     underwear_count = duration_days + 1
 
     selected = []

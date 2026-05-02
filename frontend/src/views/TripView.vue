@@ -349,25 +349,33 @@ async function regenerateSlot(payload: { day: number; category: string }) {
   if (!selectedTrip.value) return
   packingLoading.value = true
   try {
-    const duration = tripDuration.value || 3
-    const res = await apiSuggestPacking({
-      trip_type: selectedTrip.value.trip_type,
-      season: packingSeason.value,
-      duration_days: duration,
-    })
     await ensureWardrobeLoaded()
 
-    const candidates = res.items.filter(i => i.category === payload.category)
-    const currentId = packingSlots.value.find(s => s.day === payload.day && s.category === payload.category)?.item_id
-    const usedIds = new Set(
+    // Usa tutti i capi del guardaroba per quella categoria, applicando gli stessi
+    // filtri del backend (stagione, tipo viaggio, non in lavanderia)
+    const tripType = selectedTrip.value.trip_type
+    const candidates = wardrobeCache.value
+      .filter(item => {
+        if (item.category !== payload.category) return false
+        if (item.status === 'inLaundry') return false
+        if (item.seasons.length > 0 && !item.seasons.includes(packingSeason.value as any)) return false
+        if (tripType === 'work' && item.usage_type === 'personal') return false
+        if (tripType === 'personal' && item.usage_type === 'work') return false
+        return true
+      })
+      .sort((a, b) => b.like_score - a.like_score)
+
+    const currentId = packingSlots.value.find(
+      s => s.day === payload.day && s.category === payload.category
+    )?.item_id
+    const usedInOtherDays = new Set(
       packingSlots.value
         .filter(s => s.category === payload.category && s.day !== payload.day)
         .map(s => s.item_id)
     )
 
-    // Prefer items not already used in other slots of same category and different from current
     const pick =
-      candidates.find(i => i.id !== currentId && !usedIds.has(i.id)) ??
+      candidates.find(i => i.id !== currentId && !usedInOtherDays.has(i.id)) ??
       candidates.find(i => i.id !== currentId) ??
       candidates[0]
 
