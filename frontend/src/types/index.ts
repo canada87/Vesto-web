@@ -96,6 +96,7 @@ export interface TripPlan {
   duration_only: boolean
   custom_duration_days?: number
   item_ids: string[]
+  locked_item_ids: string[]
   created_at: string
 }
 

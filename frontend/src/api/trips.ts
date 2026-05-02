@@ -21,8 +21,8 @@ export async function apiUpdateTrip(id: string, data: TripPlanCreate): Promise<T
   return res.data
 }
 
-export async function apiUpdateTripItems(id: string, itemIds: string[]): Promise<TripPlan> {
-  const res = await client.put<TripPlan>(`/trips/${id}/items`, { item_ids: itemIds })
+export async function apiUpdateTripItems(id: string, itemIds: string[], lockedIds: string[] = []): Promise<TripPlan> {
+  const res = await client.put<TripPlan>(`/trips/${id}/items`, { item_ids: itemIds, locked_item_ids: lockedIds })
   return res.data
 }
 

@@ -140,6 +140,7 @@ class TripPlanResponse(TripPlanCreate):
     id: str
     user_id: str
     item_ids: List[str] = []
+    locked_item_ids: List[str] = []
     created_at: datetime
 
     class Config:
@@ -148,6 +149,7 @@ class TripPlanResponse(TripPlanCreate):
 
 class TripItemsUpdate(BaseModel):
     item_ids: List[str]
+    locked_item_ids: List[str] = []
 
 
 # --- Suggestions ---

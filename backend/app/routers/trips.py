@@ -21,6 +21,7 @@ def _trip_to_response(trip: TripPlan) -> TripPlanResponse:
         duration_only=trip.duration_only,
         custom_duration_days=trip.custom_duration_days,
         item_ids=json.loads(trip.item_ids),
+        locked_item_ids=json.loads(trip.locked_item_ids or "[]"),
         created_at=trip.created_at,
     )
 
@@ -115,6 +116,7 @@ def update_trip_items(
     if not trip:
         raise HTTPException(status_code=404, detail="Viaggio non trovato")
     trip.item_ids = json.dumps(body.item_ids)
+    trip.locked_item_ids = json.dumps(body.locked_item_ids)
     db.commit()
     db.refresh(trip)
     return _trip_to_response(trip)
