@@ -1,0 +1,26 @@
+{
+  "name": "vesto-frontend",
+  "version": "2.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "vite",
+    "build": "vue-tsc --noEmit && vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "vue": "^3.4.21",
+    "vuetify": "^3.6.1",
+    "pinia": "^2.1.7",
+    "vue-router": "^4.3.2",
+    "axios": "^1.7.2",
+    "@mdi/font": "^7.4.47"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^5.0.4",
+    "vite": "^5.2.8",
+    "vite-plugin-pwa": "^0.20.0",
+    "vite-plugin-vuetify": "^2.0.3",
+    "typescript": "^5.4.5",
+    "vue-tsc": "^2.0.13"
+  }
+}

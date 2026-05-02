@@ -1,0 +1,41 @@
+version: '3.9'
+
+services:
+  backend:
+    build: ./backend
+    container_name: vesto-backend
+    restart: unless-stopped
+    volumes:
+      - vesto_data:/app/data
+      - vesto_photos:/app/photos
+    environment:
+      - DATABASE_URL=sqlite:////app/data/vesto.db
+      - PHOTOS_DIR=/app/photos
+      - SECRET_KEY=${SECRET_KEY:-change-me-in-production}
+      - ADMIN_USERNAME=${ADMIN_USERNAME:-admin}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-changeme}
+    expose:
+      - "8000"
+
+  frontend:
+    build: ./frontend
+    container_name: vesto-frontend
+    restart: unless-stopped
+    expose:
+      - "80"
+
+  nginx:
+    image: nginx:alpine
+    container_name: vesto-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - backend
+      - frontend
+
+volumes:
+  vesto_data:
+  vesto_photos:

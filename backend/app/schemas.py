@@ -1,0 +1,163 @@
+from pydantic import BaseModel
+from typing import Optional, List
+from datetime import datetime
+
+
+# --- Auth ---
+
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
+
+class TokenResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+
+
+class UserCreate(BaseModel):
+    username: str
+    password: str
+    role: str = "user"
+
+
+class UserUpdate(BaseModel):
+    password: Optional[str] = None
+    role: Optional[str] = None
+    is_active: Optional[bool] = None
+
+
+class UserResponse(BaseModel):
+    id: str
+    username: str
+    role: str
+    is_active: bool
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+# --- Clothing Items ---
+
+class ClothingItemCreate(BaseModel):
+    name: str
+    category: str
+    age_years: float = 0
+    weight: str = "medium"
+    condition: str = "good"
+    like_score: int = 3
+    usage_type: str = "both"
+    seasons: List[str] = []
+    status: str = "inWardrobe"
+    location: str = "Casa"
+    color: Optional[str] = None
+    notes: Optional[str] = None
+
+
+class ClothingItemUpdate(ClothingItemCreate):
+    pass
+
+
+class ClothingItemResponse(ClothingItemCreate):
+    id: str
+    user_id: str
+    local_photo_path: Optional[str] = None
+    photo_url: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class ClothingItemListResponse(BaseModel):
+    items: List[ClothingItemResponse]
+    total: int
+
+
+# --- Outfit Log ---
+
+class OutfitLogCreate(BaseModel):
+    date: datetime
+    item_ids: List[str]
+    occasion: str
+    weather: Optional[str] = None
+    notes: Optional[str] = None
+
+
+class OutfitLogResponse(OutfitLogCreate):
+    id: str
+    user_id: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+# --- Trip Plans ---
+
+class TripPlanCreate(BaseModel):
+    name: str
+    destination: Optional[str] = None
+    start_date: Optional[datetime] = None
+    end_date: Optional[datetime] = None
+    trip_type: str = "both"
+    duration_only: bool = False
+    custom_duration_days: Optional[int] = None
+
+
+class TripPlanResponse(TripPlanCreate):
+    id: str
+    user_id: str
+    item_ids: List[str] = []
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class TripItemsUpdate(BaseModel):
+    item_ids: List[str]
+
+
+# --- Suggestions ---
+
+class OutfitSuggestionRequest(BaseModel):
+    occasion: str
+    weather: Optional[str] = None
+    season: Optional[str] = None
+    location: Optional[str] = None
+    novelty: bool = False
+
+
+class OutfitSuggestionResponse(BaseModel):
+    top: Optional[ClothingItemResponse] = None
+    bottom: Optional[ClothingItemResponse] = None
+    shoes: Optional[ClothingItemResponse] = None
+    outerwear: Optional[ClothingItemResponse] = None
+    accessories: List[ClothingItemResponse] = []
+    missing_categories: List[str] = []
+
+
+class PackingSuggestionRequest(BaseModel):
+    trip_type: str
+    season: str
+    duration_days: int
+
+
+class PackingSuggestionResponse(BaseModel):
+    items: List[ClothingItemResponse]
+    missing_categories: List[str] = []
+
+
+# --- Settings ---
+
+class LocationAdd(BaseModel):
+    name: str
+
+
+class StatsResponse(BaseModel):
+    total_items: int
+    total_logs: int
+    total_trips: int
