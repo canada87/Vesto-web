@@ -9,6 +9,16 @@ from app.routers import auth, items, outfit_logs, trips, suggestions, settings, 
 
 Base.metadata.create_all(bind=engine)
 
+# Migrazione: aggiunge colonne 2FA se il DB esiste già senza di esse
+with engine.connect() as conn:
+    from sqlalchemy import text
+    for col, definition in [("totp_secret", "TEXT"), ("totp_enabled", "INTEGER DEFAULT 0")]:
+        try:
+            conn.execute(text(f"ALTER TABLE users ADD COLUMN {col} {definition}"))
+            conn.commit()
+        except Exception:
+            pass  # colonna già presente
+
 app = FastAPI(title="Vesto API", version="2.0.0")
 
 app.add_middleware(

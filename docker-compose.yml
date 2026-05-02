@@ -14,6 +14,8 @@ services:
       - SECRET_KEY=${SECRET_KEY:-change-me-in-production}
       - ADMIN_USERNAME=${ADMIN_USERNAME:-admin}
       - ADMIN_PASSWORD=${ADMIN_PASSWORD:-changeme}
+      - JWT_EXPIRE_DAYS=${JWT_EXPIRE_DAYS:-7}
+      - TRUSTED_DEVICE_EXPIRE_DAYS=${TRUSTED_DEVICE_EXPIRE_DAYS:-90}
     expose:
       - "8000"
 
