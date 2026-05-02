@@ -6,8 +6,8 @@ services:
     container_name: vesto-backend
     restart: unless-stopped
     volumes:
-      - vesto_data:/app/data
-      - vesto_photos:/app/photos
+      - ./data:/app/data
+      - ./photos:/app/photos
     environment:
       - DATABASE_URL=sqlite:////app/data/vesto.db
       - PHOTOS_DIR=/app/photos
@@ -36,6 +36,3 @@ services:
       - backend
       - frontend
 
-volumes:
-  vesto_data:
-  vesto_photos:
