@@ -220,7 +220,7 @@ function toggleSeason(s: string) {
   else form.seasons.splice(idx, 1)
 }
 
-function onPhotoChange(files: File[]) {
+function onPhotoChange(files: File | File[]) {
   const file = Array.isArray(files) ? files[0] : files
   if (file) {
     const reader = new FileReader()
