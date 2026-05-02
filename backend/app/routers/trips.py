@@ -4,12 +4,15 @@ import json
 from app.database import get_db
 from app.models.db import TripPlan, User
 from app.auth import get_current_user
-from app.schemas import TripPlanCreate, TripPlanResponse, TripItemsUpdate
+from app.schemas import TripPlanCreate, TripPlanResponse, TripItemsUpdate, TripSlotsUpdate, TripSlot
 
 router = APIRouter()
 
 
 def _trip_to_response(trip: TripPlan) -> TripPlanResponse:
+    slots_raw = json.loads(trip.packing_slots or "[]")
+    packing_slots = [TripSlot(**s) for s in slots_raw]
+    item_ids = list({s.item_id for s in packing_slots})
     return TripPlanResponse(
         id=trip.id,
         user_id=trip.user_id,
@@ -20,8 +23,8 @@ def _trip_to_response(trip: TripPlan) -> TripPlanResponse:
         trip_type=trip.trip_type,
         duration_only=trip.duration_only,
         custom_duration_days=trip.custom_duration_days,
-        item_ids=json.loads(trip.item_ids),
-        locked_item_ids=json.loads(trip.locked_item_ids or "[]"),
+        item_ids=item_ids,
+        packing_slots=packing_slots,
         created_at=trip.created_at,
     )
 
@@ -102,10 +105,10 @@ def update_trip(
     return _trip_to_response(trip)
 
 
-@router.put("/{trip_id}/items", response_model=TripPlanResponse)
-def update_trip_items(
+@router.put("/{trip_id}/slots", response_model=TripPlanResponse)
+def update_trip_slots(
     trip_id: str,
-    body: TripItemsUpdate,
+    body: TripSlotsUpdate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -115,8 +118,8 @@ def update_trip_items(
     ).first()
     if not trip:
         raise HTTPException(status_code=404, detail="Viaggio non trovato")
-    trip.item_ids = json.dumps(body.item_ids)
-    trip.locked_item_ids = json.dumps(body.locked_item_ids)
+    trip.packing_slots = json.dumps([s.model_dump() for s in body.packing_slots])
+    trip.item_ids = json.dumps(list({s.item_id for s in body.packing_slots}))
     db.commit()
     db.refresh(trip)
     return _trip_to_response(trip)

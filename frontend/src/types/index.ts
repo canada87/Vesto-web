@@ -85,6 +85,13 @@ export interface OutfitLogCreate {
   notes?: string
 }
 
+export interface TripSlot {
+  day: number
+  category: string
+  item_id: string
+  locked: boolean
+}
+
 export interface TripPlan {
   id: string
   user_id: string
@@ -96,7 +103,7 @@ export interface TripPlan {
   duration_only: boolean
   custom_duration_days?: number
   item_ids: string[]
-  locked_item_ids: string[]
+  packing_slots: TripSlot[]
   created_at: string
 }
 

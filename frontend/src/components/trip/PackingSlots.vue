@@ -26,7 +26,7 @@
                 :key="cat"
                 :icon="CATEGORY_ICONS[cat]"
                 size="13"
-                :color="slotColor(cat, day - 1)"
+                :color="daySlotColor(cat, day - 1)"
               />
             </div>
           </div>
@@ -42,43 +42,40 @@
 
               <!-- Filled slot -->
               <div
-                v-if="getSlotItem(category, day - 1)"
+                v-if="getSlot(day - 1, category)"
                 class="d-flex align-center gap-2 pa-2 rounded-lg"
-                :style="slotStyle(getSlotItem(category, day - 1)!.id)"
+                :style="slotStyle(day - 1, category)"
               >
                 <v-avatar size="32" rounded="sm">
                   <v-img
-                    v-if="getSlotItem(category, day - 1)!.photo_url"
-                    :src="getSlotItem(category, day - 1)!.photo_url"
+                    v-if="getItem(getSlot(day - 1, category)!.item_id)?.photo_url"
+                    :src="getItem(getSlot(day - 1, category)!.item_id)!.photo_url"
                     cover
                   />
                   <v-icon v-else :icon="CATEGORY_ICONS[category]" size="18" />
                 </v-avatar>
 
                 <div class="flex-grow-1 min-width-0">
-                  <div class="text-body-2 text-truncate">{{ getSlotItem(category, day - 1)!.name }}</div>
-                  <div v-if="getSlotItem(category, day - 1)!.color" class="text-caption text-medium-emphasis">
-                    {{ getSlotItem(category, day - 1)!.color }}
+                  <div class="text-body-2 text-truncate">
+                    {{ getItem(getSlot(day - 1, category)!.item_id)?.name ?? '—' }}
+                  </div>
+                  <div
+                    v-if="getItem(getSlot(day - 1, category)!.item_id)?.color"
+                    class="text-caption text-medium-emphasis"
+                  >
+                    {{ getItem(getSlot(day - 1, category)!.item_id)!.color }}
                   </div>
                 </div>
 
-                <v-chip
-                  v-if="sharedDays(category, getSlotIndex(category, day - 1)) > 1"
-                  size="x-small"
-                  variant="tonal"
-                  color="grey"
-                  class="px-1"
-                >
-                  ×{{ sharedDays(category, getSlotIndex(category, day - 1)) }}gg
-                </v-chip>
-
                 <v-btn
-                  :icon="isLocked(getSlotItem(category, day - 1)!.id) ? 'mdi-lock' : 'mdi-lock-open-variant'"
+                  :icon="getSlot(day - 1, category)!.locked ? 'mdi-lock' : 'mdi-lock-open-variant'"
                   size="x-small"
                   variant="text"
-                  :color="isLocked(getSlotItem(category, day - 1)!.id) ? 'primary' : 'grey'"
-                  :title="isLocked(getSlotItem(category, day - 1)!.id) ? 'Sblocca (Suggerisci potrà cambiarlo)' : 'Blocca (Suggerisci non lo cambierà)'"
-                  @click="$emit('toggleLock', getSlotItem(category, day - 1)!.id)"
+                  :color="getSlot(day - 1, category)!.locked ? 'primary' : 'grey'"
+                  :title="getSlot(day - 1, category)!.locked
+                    ? 'Sblocca (Suggerisci potrà cambiarlo)'
+                    : 'Blocca (Suggerisci non lo cambierà)'"
+                  @click="$emit('toggleLockSlot', { day: day - 1, category })"
                 />
 
                 <v-btn
@@ -87,7 +84,7 @@
                   variant="text"
                   color="error"
                   title="Rimuovi dalla valigia"
-                  @click="$emit('removeItem', getSlotItem(category, day - 1)!.id)"
+                  @click="$emit('removeSlot', { day: day - 1, category })"
                 />
               </div>
 
@@ -111,81 +108,66 @@
       </v-expansion-panel>
     </v-expansion-panels>
 
-    <div v-if="duration > 0 && items.length === 0" class="text-center text-medium-emphasis pa-6">
+    <div v-if="duration > 0 && slots.length === 0" class="text-center text-medium-emphasis pa-6">
       <v-icon icon="mdi-bag-suitcase-outline" size="48" class="mb-2 d-block" />
       <div class="text-body-2">Valigia vuota</div>
-      <div class="text-caption mt-1">Premi Suggerisci per ricevere suggerimenti automatici,<br>o scegli tu i capi giorno per giorno.</div>
+      <div class="text-caption mt-1">
+        Premi Suggerisci per ricevere suggerimenti automatici,<br>
+        o scegli tu i capi giorno per giorno.
+      </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import type { ClothingItem } from '@/types'
+import type { ClothingItem, TripSlot } from '@/types'
 import { CATEGORY_LABELS, CATEGORY_ICONS } from '@/utils/constants'
 
 const DISPLAY_CATEGORIES = ['top', 'bottom', 'shoes', 'outerwear', 'underwear', 'accessory', 'sportswear']
 
 const props = defineProps<{
+  slots: TripSlot[]
   items: ClothingItem[]
-  lockedIds: string[]
   missing: string[]
   duration: number
 }>()
 
 defineEmits<{
-  toggleLock: [id: string]
-  removeItem: [id: string]
+  toggleLockSlot: [payload: { day: number; category: string }]
+  removeSlot: [payload: { day: number; category: string }]
   addSlot: [payload: { category: string; dayIndex: number }]
 }>()
 
 const openPanels = ref<number[]>(Array.from({ length: Math.min(props.duration, 3) }, (_, i) => i))
 
-const itemsByCategory = computed<Record<string, ClothingItem[]>>(() => {
-  const map: Record<string, ClothingItem[]> = {}
+const itemsById = computed<Record<string, ClothingItem>>(() => {
+  const map: Record<string, ClothingItem> = {}
   for (const item of props.items) {
-    if (!map[item.category]) map[item.category] = []
-    map[item.category].push(item)
+    map[item.id] = item
   }
   return map
 })
 
-function getSlotIndex(category: string, dayIndex: number): number {
-  const count = itemsByCategory.value[category]?.length ?? 0
-  if (count === 0) return -1
-  return dayIndex % count
+function getSlot(day: number, category: string): TripSlot | null {
+  return props.slots.find(s => s.day === day && s.category === category) ?? null
 }
 
-function getSlotItem(category: string, dayIndex: number): ClothingItem | null {
-  const items = itemsByCategory.value[category]
-  if (!items?.length) return null
-  return items[dayIndex % items.length]
+function getItem(itemId: string): ClothingItem | null {
+  return itemsById.value[itemId] ?? null
 }
 
-function isLocked(id: string): boolean {
-  return props.lockedIds.includes(id)
-}
-
-function sharedDays(category: string, itemIndex: number): number {
-  const count = itemsByCategory.value[category]?.length ?? 0
-  if (count === 0 || itemIndex < 0) return 0
-  let days = 0
-  for (let d = 0; d < props.duration; d++) {
-    if (d % count === itemIndex) days++
-  }
-  return days
-}
-
-function slotStyle(itemId: string): string {
-  const locked = isLocked(itemId)
-  return locked
+function slotStyle(day: number, category: string): string {
+  const slot = getSlot(day, category)
+  if (!slot) return ''
+  return slot.locked
     ? 'background: rgba(var(--v-theme-primary), 0.08); border: 1px solid rgba(var(--v-theme-primary), 0.2)'
     : 'background: rgba(var(--v-border-color), 0.06)'
 }
 
-function slotColor(category: string, dayIndex: number): string {
-  const item = getSlotItem(category, dayIndex)
-  if (!item) return 'grey-lighten-3'
-  return isLocked(item.id) ? 'primary' : 'success'
+function daySlotColor(category: string, day: number): string {
+  const slot = getSlot(day, category)
+  if (!slot) return 'grey-lighten-3'
+  return slot.locked ? 'primary' : 'success'
 }
 </script>

@@ -136,11 +136,18 @@ class TripPlanCreate(BaseModel):
     custom_duration_days: Optional[int] = None
 
 
+class TripSlot(BaseModel):
+    day: int
+    category: str
+    item_id: str
+    locked: bool = True
+
+
 class TripPlanResponse(TripPlanCreate):
     id: str
     user_id: str
     item_ids: List[str] = []
-    locked_item_ids: List[str] = []
+    packing_slots: List[TripSlot] = []
     created_at: datetime
 
     class Config:
@@ -150,6 +157,10 @@ class TripPlanResponse(TripPlanCreate):
 class TripItemsUpdate(BaseModel):
     item_ids: List[str]
     locked_item_ids: List[str] = []
+
+
+class TripSlotsUpdate(BaseModel):
+    packing_slots: List[TripSlot]
 
 
 # --- Suggestions ---

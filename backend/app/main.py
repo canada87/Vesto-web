@@ -16,6 +16,7 @@ with engine.connect() as conn:
         ("users", "totp_secret", "TEXT"),
         ("users", "totp_enabled", "INTEGER DEFAULT 0"),
         ("trip_plans", "locked_item_ids", "TEXT DEFAULT '[]'"),
+        ("trip_plans", "packing_slots", "TEXT DEFAULT '[]'"),
     ]
     for table, col, definition in migrations:
         try:

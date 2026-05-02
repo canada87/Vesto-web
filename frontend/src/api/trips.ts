@@ -1,5 +1,5 @@
 import client from './client'
-import type { TripPlan, TripPlanCreate } from '@/types'
+import type { TripPlan, TripPlanCreate, TripSlot } from '@/types'
 
 export async function apiGetTrips(): Promise<TripPlan[]> {
   const res = await client.get<TripPlan[]>('/trips')
@@ -21,8 +21,8 @@ export async function apiUpdateTrip(id: string, data: TripPlanCreate): Promise<T
   return res.data
 }
 
-export async function apiUpdateTripItems(id: string, itemIds: string[], lockedIds: string[] = []): Promise<TripPlan> {
-  const res = await client.put<TripPlan>(`/trips/${id}/items`, { item_ids: itemIds, locked_item_ids: lockedIds })
+export async function apiUpdateTripSlots(id: string, slots: TripSlot[]): Promise<TripPlan> {
+  const res = await client.put<TripPlan>(`/trips/${id}/slots`, { packing_slots: slots })
   return res.data
 }
 

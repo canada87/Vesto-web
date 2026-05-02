@@ -87,7 +87,7 @@
               <v-icon start size="16">mdi-magic-staff</v-icon>
               Suggerisci
             </v-btn>
-            <v-progress-circular v-if="savingItems" size="20" width="2" indeterminate color="primary" />
+            <v-progress-circular v-if="savingSlots" size="20" width="2" indeterminate color="primary" />
           </div>
 
           <!-- Items loading -->
@@ -98,12 +98,12 @@
           <!-- Packing slots (day view) -->
           <PackingSlots
             v-else
-            :items="packingItems"
-            :locked-ids="lockedIds"
+            :slots="packingSlots"
+            :items="wardrobeCache"
             :missing="packingMissing"
             :duration="tripDuration"
-            @toggle-lock="toggleLock"
-            @remove-item="removeItem"
+            @toggle-lock-slot="toggleLockSlot"
+            @remove-slot="removeSlot"
             @add-slot="openPicker"
           />
         </v-card-text>
@@ -148,8 +148,6 @@
             <v-list-item
               v-for="item in pickerItems"
               :key="item.id"
-              :disabled="packingItems.some(i => i.id === item.id)"
-              :prepend-icon="item.photo_url ? undefined : CATEGORY_ICONS[item.category]"
               @click="addPickedItem(item)"
             >
               <template v-if="item.photo_url" #prepend>
@@ -157,14 +155,14 @@
                   <v-img :src="item.photo_url" cover />
                 </v-avatar>
               </template>
+              <template v-else #prepend>
+                <v-icon :icon="CATEGORY_ICONS[item.category]" />
+              </template>
               <template #title>
                 <span class="text-body-2">{{ item.name }}</span>
               </template>
               <template #subtitle>
                 <span class="text-caption">{{ item.color }}</span>
-              </template>
-              <template #append>
-                <v-icon v-if="packingItems.some(i => i.id === item.id)" icon="mdi-check" color="success" size="16" />
               </template>
             </v-list-item>
           </v-list>
@@ -179,10 +177,10 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useDisplay } from 'vuetify'
-import type { TripPlan, TripPlanCreate, ClothingItem } from '@/types'
+import type { TripPlan, TripPlanCreate, TripSlot, ClothingItem } from '@/types'
 import TripForm from '@/components/trip/TripForm.vue'
 import PackingSlots from '@/components/trip/PackingSlots.vue'
-import { apiGetTrips, apiCreateTrip, apiUpdateTrip, apiDeleteTrip, apiUpdateTripItems } from '@/api/trips'
+import { apiGetTrips, apiCreateTrip, apiUpdateTrip, apiDeleteTrip, apiUpdateTripSlots } from '@/api/trips'
 import { apiGetItems } from '@/api/items'
 import { apiSuggestPacking } from '@/api/suggestions'
 import { formatDate } from '@/utils/formatters'
@@ -199,19 +197,22 @@ const selectedTrip = ref<TripPlan | undefined>()
 const editingTrip = ref<TripPlan | undefined>()
 
 // Packing state
-const packingItems = ref<ClothingItem[]>([])
-const lockedIds = ref<string[]>([])
+const packingSlots = ref<TripSlot[]>([])
 const packingMissing = ref<string[]>([])
 const packingLoading = ref(false)
 const packingItemsLoading = ref(false)
-const savingItems = ref(false)
+const savingSlots = ref(false)
 const packingSeason = ref(getCurrentSeason())
+
+// Wardrobe cache (shared between item loading and picker)
+const wardrobeCache = ref<ClothingItem[]>([])
+const wardrobeCacheLoaded = ref(false)
 
 // Item picker
 const pickerDialog = ref(false)
 const pickerCategory = ref('')
+const pickerDayIndex = ref(0)
 const pickerLoading = ref(false)
-const wardrobeCache = ref<ClothingItem[]>([])
 
 const snackbar = ref(false)
 const snackMessage = ref('')
@@ -250,19 +251,23 @@ function openEdit(trip: TripPlan) {
   formDialog.value = true
 }
 
+async function ensureWardrobeLoaded() {
+  if (wardrobeCacheLoaded.value) return
+  const res = await apiGetItems()
+  wardrobeCache.value = res.items
+  wardrobeCacheLoaded.value = true
+}
+
 async function selectTrip(trip: TripPlan) {
   selectedTrip.value = trip
-  lockedIds.value = trip.locked_item_ids ?? []
+  packingSlots.value = trip.packing_slots ?? []
   packingMissing.value = []
-  packingItems.value = []
   detailDialog.value = true
 
-  if (trip.item_ids.length > 0) {
+  if (trip.item_ids.length > 0 && !wardrobeCacheLoaded.value) {
     packingItemsLoading.value = true
     try {
-      const idSet = new Set(trip.item_ids)
-      const res = await apiGetItems()
-      packingItems.value = res.items.filter(i => idSet.has(i.id))
+      await ensureWardrobeLoaded()
     } finally {
       packingItemsLoading.value = false
     }
@@ -283,7 +288,6 @@ async function saveTrip(data: TripPlanCreate) {
       trips.value.unshift(created)
       formDialog.value = false
       showSnack('Viaggio creato', 'success')
-      // Apre direttamente il dettaglio del nuovo viaggio
       await selectTrip(created)
     }
   } catch {
@@ -310,26 +314,38 @@ async function loadPacking() {
       duration_days: duration,
     })
     packingMissing.value = res.missing_categories
+    await ensureWardrobeLoaded()
 
-    // Mantieni gli item locked, rimpiazza quelli non locked con i suggerimenti
-    const locked = packingItems.value.filter(i => lockedIds.value.includes(i.id))
-    const lockedIdSet = new Set(lockedIds.value)
-
-    const result = [...locked]
-    const resultIds = new Set(locked.map(i => i.id))
-
+    // Group suggestions by category
+    const byCat: Record<string, ClothingItem[]> = {}
     for (const item of res.items) {
-      if (!lockedIdSet.has(item.id) && !resultIds.has(item.id)) {
-        result.push(item)
-        resultIds.add(item.id)
+      if (!byCat[item.category]) byCat[item.category] = []
+      byCat[item.category].push(item)
+    }
+
+    // Rebuild slots: keep locked, fill unlocked with suggestions
+    const newSlots: TripSlot[] = []
+    for (const [cat, suggested] of Object.entries(byCat)) {
+      let sugIdx = 0
+      for (let d = 0; d < duration; d++) {
+        const existing = packingSlots.value.find(s => s.day === d && s.category === cat)
+        if (existing?.locked) {
+          newSlots.push(existing)
+        } else if (sugIdx < suggested.length) {
+          newSlots.push({ day: d, category: cat, item_id: suggested[sugIdx++].id, locked: true })
+        }
+        // else: no suggestion for this day → empty slot (nothing pushed)
+      }
+    }
+    // Keep locked slots from categories not covered by suggestions
+    for (const s of packingSlots.value) {
+      if (s.locked && !newSlots.find(ns => ns.day === s.day && ns.category === s.category)) {
+        newSlots.push(s)
       }
     }
 
-    // Auto-lock tutto (anche i nuovi suggerimenti)
-    packingItems.value = result
-    lockedIds.value = result.map(i => i.id)
-
-    await savePackingData()
+    packingSlots.value = newSlots
+    await saveSlots()
   } catch {
     showSnack('Errore nel suggerimento packing', 'error')
   } finally {
@@ -337,29 +353,28 @@ async function loadPacking() {
   }
 }
 
-async function toggleLock(itemId: string) {
-  if (lockedIds.value.includes(itemId)) {
-    lockedIds.value = lockedIds.value.filter(id => id !== itemId)
-  } else {
-    lockedIds.value = [...lockedIds.value, itemId]
-  }
-  await savePackingData()
+async function toggleLockSlot(payload: { day: number; category: string }) {
+  const slot = packingSlots.value.find(s => s.day === payload.day && s.category === payload.category)
+  if (!slot) return
+  slot.locked = !slot.locked
+  await saveSlots()
 }
 
-async function removeItem(itemId: string) {
-  packingItems.value = packingItems.value.filter(i => i.id !== itemId)
-  lockedIds.value = lockedIds.value.filter(id => id !== itemId)
-  await savePackingData()
+async function removeSlot(payload: { day: number; category: string }) {
+  packingSlots.value = packingSlots.value.filter(
+    s => !(s.day === payload.day && s.category === payload.category)
+  )
+  await saveSlots()
 }
 
 async function openPicker(payload: { category: string; dayIndex: number }) {
   pickerCategory.value = payload.category
+  pickerDayIndex.value = payload.dayIndex
   pickerDialog.value = true
-  if (wardrobeCache.value.length === 0) {
+  if (!wardrobeCacheLoaded.value) {
     pickerLoading.value = true
     try {
-      const res = await apiGetItems()
-      wardrobeCache.value = res.items
+      await ensureWardrobeLoaded()
     } finally {
       pickerLoading.value = false
     }
@@ -367,28 +382,30 @@ async function openPicker(payload: { category: string; dayIndex: number }) {
 }
 
 async function addPickedItem(item: ClothingItem) {
-  if (!packingItems.value.find(i => i.id === item.id)) {
-    packingItems.value = [...packingItems.value, item]
-    lockedIds.value = [...lockedIds.value, item.id]
-    await savePackingData()
-  }
+  // Remove any existing slot for this day+category, then add new one
+  packingSlots.value = packingSlots.value.filter(
+    s => !(s.day === pickerDayIndex.value && s.category === pickerCategory.value)
+  )
+  packingSlots.value.push({
+    day: pickerDayIndex.value,
+    category: pickerCategory.value,
+    item_id: item.id,
+    locked: true,
+  })
   pickerDialog.value = false
+  await saveSlots()
 }
 
-async function savePackingData() {
+async function saveSlots() {
   if (!selectedTrip.value) return
-  savingItems.value = true
+  savingSlots.value = true
   try {
-    const updated = await apiUpdateTripItems(
-      selectedTrip.value.id,
-      packingItems.value.map(i => i.id),
-      lockedIds.value,
-    )
+    const updated = await apiUpdateTripSlots(selectedTrip.value.id, packingSlots.value)
     const idx = trips.value.findIndex(t => t.id === selectedTrip.value!.id)
     if (idx !== -1) trips.value[idx] = updated
     selectedTrip.value = updated
   } finally {
-    savingItems.value = false
+    savingSlots.value = false
   }
 }
 

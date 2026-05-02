@@ -66,6 +66,7 @@ class TripPlan(Base):
     trip_type = Column(String, default="both")
     item_ids = Column(Text, default="[]")
     locked_item_ids = Column(Text, default="[]")
+    packing_slots = Column(Text, default="[]")
     duration_only = Column(Boolean, default=False)
     custom_duration_days = Column(Integer, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
